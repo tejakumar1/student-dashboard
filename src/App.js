@@ -146,9 +146,10 @@ const logout = () => {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-100">
         <div className="bg-white p-6 w-full max-w-md shadow">
-          <h2 className="text-lg font-bold mb-4 text-center">
-            {isLogin ? "Login" : "Signup"}
+          <h2 className="text-2xl font-extrabold mb-6 text-center text-green-700">
+              {isLogin ? "Student Login Portal" : "Create Student Account"}
           </h2>
+
 
           {!isLogin && (
             <>

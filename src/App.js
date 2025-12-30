@@ -31,19 +31,91 @@ function App() {
   const change = (e) =>
     setForm({ ...form, [e.target.name]: e.target.value });
 
-  /* ---------- AUTH ---------- */
+  /* ---------------- VALIDATION ---------------- */
 
-  const signup = async () => {
-    const res = await fetch(`${API}/signup`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(form),
-    });
-    const data = await res.json();
-    if (!data.success) return alert(data.msg);
-    alert("Signup successful");
-    setIsLogin(true);
+  const isEmail = (email) =>
+    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+
+  const isMobile = (mobile) =>
+    /^[6-9]\d{9}$/.test(mobile);
+
+  const validateLogin = (form) => {
+    if (!form.mobile.trim()) return "Mobile is required";
+    if (!form.password.trim()) return "Password is required";
+    return null;
   };
+
+const validateSignup = (form) => {
+  const err = {};
+
+  if (!form.fname.trim()) err.fname = "First name is required";
+  if (!form.lname.trim()) err.lname = "Last name is required";
+
+  if (!form.email.trim())
+    err.email = "Email is required";
+  else if (!isEmail(form.email))
+    err.email = "Invalid email address";
+
+  if (!form.mobile.trim())
+    err.mobile = "Mobile is required";
+  else if (!isMobile(form.mobile))
+    err.mobile = "Invalid mobile number";
+
+  if (!form.password)
+    err.password = "Password is required";
+  else if (form.password.length < 6)
+    err.password = "Minimum 6 characters";
+
+  return err;
+};
+
+
+  /* ---------------- FETCH STUDENTS (FIXED POSITION) ---------------- */
+
+  const fetchStudents = useCallback(async () => {
+    if (!user) return;
+
+    const params = new URLSearchParams();
+    if (filterName.trim()) params.append("name", filterName);
+    if (filterAge) params.append("age", filterAge);
+
+    const res = await fetch(`${API}/students?${params.toString()}`);
+    const data = await res.json();
+    setStudents(data);
+  }, [user, filterName, filterAge]);
+
+  /* load students after login & filter */
+  useEffect(() => {
+    fetchStudents();
+  }, [fetchStudents]);
+
+  /* ---------------- AUTH ---------------- */
+
+const signup = async () => {
+  const validationErrors = validateSignup(form);
+  setErrors(validationErrors);
+
+  if (Object.keys(validationErrors).length > 0) return;
+
+  const res = await fetch(`${API}/signup`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(form),
+  });
+
+  const data = await res.json();
+
+  if (!res.ok || !data.success) {
+    setErrors({ server: data.message || data.msg || "Signup failed" });
+    return;
+  }
+
+  setErrors({});
+  setIsLogin(true);
+  return alert("successful signup");
+};
+
+
 
   const login = async () => {
     const error = validateLogin(form);
@@ -162,42 +234,97 @@ function App() {
   }
 };
 
-  /* ---------- LOGIN / SIGNUP ---------- */
 
-  if (!user) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-100">
-        <div className="bg-white p-6 w-full max-w-md shadow">
-          <h2 className="text-2xl font-extrabold mb-6 text-center text-green-700">
-              {isLogin ? "Student Login Portal" : "Create Student Account"}
-          </h2>
+  /* ---------------- LOGIN UI ---------------- */
+if (!user) {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gray-100">
+      <div className="bg-white p-6 w-full max-w-md shadow">
+        <h2 className="text-lg font-bold mb-4 text-center">
+          {isLogin ? "Login" : "Signup"}
+        </h2>
 
+        {!isLogin && (
+          <>
+            <input
+              name="fname"
+              placeholder="First Name"
+              onChange={change}
+              className={input}
+            />
+            {errors.fname && (
+              <p className="text-red-500 text-sm mb-1">{errors.fname}</p>
+            )}
 
-          {!isLogin && (
-            <>
-              <input name="fname" placeholder="First Name" onChange={change} className={input} />
-              <input name="lname" placeholder="Last Name" onChange={change} className={input} />
-              <input name="email" placeholder="Email" onChange={change} className={input} />
-            </>
-          )}
+            <input
+              name="lname"
+              placeholder="Last Name"
+              onChange={change}
+              className={input}
+            />
+            {errors.lname && (
+              <p className="text-red-500 text-sm mb-1">{errors.lname}</p>
+            )}
 
-          <input name="mobile" placeholder="Mobile" onChange={change} className={input} />
-          <input name="password" type="password" placeholder="Password" onChange={change} className={input} />
+            <input
+              name="email"
+              placeholder="Email"
+              onChange={change}
+              className={input}
+            />
+            {errors.email && (
+              <p className="text-red-500 text-sm mb-1">{errors.email}</p>
+            )}
+          </>
+        )}
 
-          <button onClick={isLogin ? login : signup} className="w-full bg-blue-600 text-white py-2">
-            {isLogin ? "Login" : "Signup"}
-          </button>
+        <input
+          name="mobile"
+          placeholder="Mobile"
+          onChange={change}
+          className={input}
+        />
+        {errors.mobile && (
+          <p className="text-red-500 text-sm mb-1">{errors.mobile}</p>
+        )}
 
-          <p
-            className="text-sm text-center text-blue-600 mt-3 cursor-pointer"
-            onClick={() => setIsLogin(!isLogin)}
-          >
-            {isLogin ? "Create account" : "Already have account?"}
+        <input
+          name="password"
+          type="password"
+          placeholder="Password"
+          onChange={change}
+          className={input}
+        />
+        {errors.password && (
+          <p className="text-red-500 text-sm mb-1">{errors.password}</p>
+        )}
+
+        {errors.server && (
+          <p className="text-red-600 text-sm text-center mb-2">
+            {errors.server}
           </p>
-        </div>
+        )}
+
+        <button
+          onClick={isLogin ? login : signup}
+          className="w-full bg-blue-600 text-white py-2"
+        >
+          {isLogin ? "Login" : "Signup"}
+        </button>
+
+        <p
+          className="text-sm text-center text-blue-600 mt-3 cursor-pointer"
+          onClick={() => {
+            setIsLogin(!isLogin);
+            setErrors({});
+          }}
+        >
+          {isLogin ? "Create account" : "Already have account?"}
+        </p>
       </div>
-    );
-  }
+    </div>
+  );
+}
 
 
   /* dashboard UI */

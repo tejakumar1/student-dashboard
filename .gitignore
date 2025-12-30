@@ -8,3 +8,9 @@ backend/*.db
 
 # Environment
 .env
+
+# uploads
+backend/uploads/
+
+# react build
+build/

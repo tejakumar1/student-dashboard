@@ -33,18 +33,35 @@ function App() {
     setForm({ ...form, [e.target.name]: e.target.value });
 
   /* ---------- AUTH ---------- */
+const signup = async () => {
+  // ✅ Required field validation
+  if (
+    !form.fname ||
+    !form.lname ||
+    !form.email ||
+    !form.mobile ||
+    !form.password
+  ) {
+    alert("Please fill all required fields");
+    return;
+  }
 
-  const signup = async () => {
-    const res = await fetch(`${API}/signup`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(form),
-    });
-    const data = await res.json();
-    if (!data.success) return alert(data.msg);
-    alert("Signup successful");
-    setIsLogin(true);
-  };
+  const res = await fetch(`${API}/signup`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(form),
+  });
+
+  const data = await res.json();
+
+  if (!data.success) {
+    alert(data.msg);
+    return;
+  }
+
+  alert("Signup successful");
+  setIsLogin(true);
+};
 
   const login = async () => {
     const res = await fetch(`${API}/login`, {
@@ -141,41 +158,81 @@ const logout = () => {
   };
 
   /* ---------- LOGIN / SIGNUP ---------- */
+if (!user) {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gray-100">
+      <div className="bg-white w-full max-w-md p-6 rounded-lg shadow-md">
 
-  if (!user) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-100">
-        <div className="bg-white p-6 w-full max-w-md shadow">
-          <h2 className="text-2xl font-extrabold mb-6 text-center text-green-700">
-              {isLogin ? "Student Login Portal" : "Create Student Account"}
-          </h2>
+        <h2 className="text-xl font-semibold text-center mb-6">
+          {isLogin ? "Login" : "Create Account"}
+        </h2>
 
+        <div className="space-y-3">
 
           {!isLogin && (
             <>
-              <input name="fname" placeholder="First Name" onChange={change} className={input} />
-              <input name="lname" placeholder="Last Name" onChange={change} className={input} />
-              <input name="email" placeholder="Email" onChange={change} className={input} />
+              <input
+                name="fname"
+                placeholder="First Name"
+                onChange={change}
+                className="w-full border border-gray-300 px-3 py-2 rounded
+                           focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+
+              <input
+                name="lname"
+                placeholder="Last Name"
+                onChange={change}
+                className="w-full border border-gray-300 px-3 py-2 rounded
+                           focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+
+              <input
+                name="email"
+                placeholder="Email"
+                onChange={change}
+                className="w-full border border-gray-300 px-3 py-2 rounded
+                           focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
             </>
           )}
 
-          <input name="mobile" placeholder="Mobile" onChange={change} className={input} />
-          <input name="password" type="password" placeholder="Password" onChange={change} className={input} />
+          <input
+            name="mobile"
+            placeholder="Mobile"
+            onChange={change}
+            className="w-full border border-gray-300 px-3 py-2 rounded
+                       focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
 
-          <button onClick={isLogin ? login : signup} className="w-full bg-blue-600 text-white py-2">
-            {isLogin ? "Login" : "Signup"}
-          </button>
-
-          <p
-            className="text-sm text-center text-blue-600 mt-3 cursor-pointer"
-            onClick={() => setIsLogin(!isLogin)}
-          >
-            {isLogin ? "Create account" : "Already have account?"}
-          </p>
+          <input
+            name="password"
+            type="password"
+            placeholder="Password"
+            onChange={change}
+            className="w-full border border-gray-300 px-3 py-2 rounded
+                       focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
         </div>
+
+        <button
+          onClick={isLogin ? login : signup}
+          className="w-full mt-5 bg-blue-600 hover:bg-blue-700
+                     text-white py-2 rounded transition"
+        >
+          {isLogin ? "Login" : "Signup"}
+        </button>
+
+        <p
+          className="text-sm text-center text-blue-600 mt-4 cursor-pointer hover:underline"
+          onClick={() => setIsLogin(!isLogin)}
+        >
+          {isLogin ? "Create new account" : "Already have an account?"}
+        </p>
       </div>
-    );
-  }
+    </div>
+  );
+}
 
   /* ---------- DASHBOARD ---------- */
 

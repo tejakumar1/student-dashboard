@@ -1,4 +1,6 @@
-import { useEffect, useState } from "react";
+
+
+import { useEffect, useState, useCallback } from "react";
 
 const API = "http://127.0.0.1:5000";
 const input = "w-full border px-3 py-2 rounded mb-2";
@@ -6,64 +8,47 @@ const input = "w-full border px-3 py-2 rounded mb-2";
 function App() {
   const [user, setUser] = useState(null);
   const [isLogin, setIsLogin] = useState(true);
-
-  // Profile popup
   const [showProfileModal, setShowProfileModal] = useState(false);
-
-  // Student popup
   const [showStudentModal, setShowStudentModal] = useState(false);
   const [editStudentId, setEditStudentId] = useState(null);
 
+  const [filterName, setFilterName] = useState("");
+  const [filterAge, setFilterAge] = useState("");
+  const [profilePic, setProfilePic] = useState(null);
+
   const [form, setForm] = useState({
-    fname: "",
-    lname: "",
-    email: "",
-    mobile: "",
-    password: "",
+    fname: "", lname: "", email: "", mobile: "", password: "",
   });
 
   const [students, setStudents] = useState([]);
   const [studentForm, setStudentForm] = useState({
-    name: "",
-    roll: "",
-    dept: "",
+    name: "", roll: "", dept: "", age: "",
   });
+  const [errors, setErrors] = useState({});
+  const [profileLoading, setProfileLoading] = useState(false);
+
 
   const change = (e) =>
     setForm({ ...form, [e.target.name]: e.target.value });
 
   /* ---------- AUTH ---------- */
-const signup = async () => {
-  // ✅ Required field validation
-  if (
-    !form.fname ||
-    !form.lname ||
-    !form.email ||
-    !form.mobile ||
-    !form.password
-  ) {
-    alert("Please fill all required fields");
-    return;
-  }
 
-  const res = await fetch(`${API}/signup`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(form),
-  });
-
-  const data = await res.json();
-
-  if (!data.success) {
-    alert(data.msg);
-    return;
-  }
-
-  alert("Signup successful");
-  setIsLogin(true);
-};
+  const signup = async () => {
+    const res = await fetch(`${API}/signup`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(form),
+    });
+    const data = await res.json();
+    if (!data.success) return alert(data.msg);
+    alert("Signup successful");
+    setIsLogin(true);
+  };
 
   const login = async () => {
+    const error = validateLogin(form);
+    if (error) return alert(error);
+
     const res = await fetch(`${API}/login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -72,43 +57,32 @@ const signup = async () => {
         password: form.password,
       }),
     });
+
     const data = await res.json();
-    if (!data.success) return alert("Invalid credentials");
+    if (!res.ok || !data.success)
+      return alert(data.message || "Invalid credentials");
+
     setUser(data.user);
+    localStorage.setItem("user", JSON.stringify(data.user));
   };
 
-const logout = () => {
-  setUser(null);
-  setStudents([]);
-  setForm({
-    fname: "",
-    lname: "",
-    email: "",
-    mobile: "",
-    password: "",
-  });
-};
+  const logout = () => {
+    setUser(null);
+    setStudents([]);
+    localStorage.removeItem("user");
+    setForm({ fname: "", lname: "", email: "", mobile: "", password: "" });
+  };
 
-
-  /* ---------- LOAD STUDENTS ---------- */
-
-  useEffect(() => {
-    if (!user) return;
-    fetch(`${API}/students/${user.mobile}`)
-      .then((res) => res.json())
-      .then(setStudents);
-  }, [user]);
-
-  /* ---------- STUDENT MODAL ---------- */
+  /* ---------------- STUDENTS ---------------- */
 
   const openAddStudent = () => {
-    setStudentForm({ name: "", roll: "", dept: "" });
+    setStudentForm({ name: "", roll: "", dept: "", age: "" });
     setEditStudentId(null);
     setShowStudentModal(true);
   };
 
   const openEditStudent = (s) => {
-    setStudentForm({ name: s.name, roll: s.roll, dept: s.dept });
+    setStudentForm({ name: s.name, roll: s.roll, dept: s.dept, age: s.age });
     setEditStudentId(s.id);
     setShowStudentModal(true);
   };
@@ -131,10 +105,7 @@ const logout = () => {
     }
 
     setShowStudentModal(false);
-
-    fetch(`${API}/students/${user.mobile}`)
-      .then((res) => res.json())
-      .then(setStudents);
+    fetchStudents();
   };
 
   const deleteStudent = async (id) => {
@@ -142,133 +113,145 @@ const logout = () => {
     setStudents(students.filter((s) => s.id !== id));
   };
 
-  /* ---------- PROFILE ---------- */
+  const clearFilters = async () => {
+    setFilterName("");
+    setFilterAge("");
 
-  const saveProfile = async () => {
-    const res = await fetch(`${API}/profile`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(user),
-    });
+    const res = await fetch(`${API}/students`);
     const data = await res.json();
-    if (data.success) {
-      alert("Profile updated");
-      setShowProfileModal(false);
-    }
+    setStudents(data);
   };
 
+  /* ---------------- PROFILE ---------------- */const saveProfile = async () => {
+  setProfileLoading(true); // 🔥 START BUFFER
+
+  try {
+    const formData = new FormData();
+    formData.append("fname", user.fname);
+    formData.append("lname", user.lname);
+    formData.append("email", user.email);
+    formData.append("mobile", user.mobile);
+
+    if (profilePic) {
+      formData.append("profile_pic", profilePic);
+    }
+
+    const res = await fetch(`${API}/profile`, {
+      method: "PUT",
+      body: formData,
+    });
+
+    const data = await res.json();
+
+    if (!res.ok || !data.success) {
+      alert("Profile update failed");
+      return;
+    }
+
+    localStorage.setItem("user", JSON.stringify(data.user));
+    setUser(data.user);
+
+    // ⛔ DO NOT close modal immediately
+    setTimeout(() => {
+      setShowProfileModal(false);
+    }, 500);
+  } catch (err) {
+    alert("Network error");
+  } finally {
+    setProfileLoading(false); // ✅ STOP BUFFER
+  }
+};
+
   /* ---------- LOGIN / SIGNUP ---------- */
-if (!user) {
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100">
-      <div className="bg-white w-full max-w-md p-6 rounded-lg shadow-md">
 
-        <h2 className="text-xl font-semibold text-center mb-6">
-          {isLogin ? "Login" : "Create Account"}
-        </h2>
+  if (!user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-100">
+        <div className="bg-white p-6 w-full max-w-md shadow">
+          <h2 className="text-2xl font-extrabold mb-6 text-center text-green-700">
+              {isLogin ? "Student Login Portal" : "Create Student Account"}
+          </h2>
 
-        <div className="space-y-3">
 
           {!isLogin && (
             <>
-              <input
-                name="fname"
-                placeholder="First Name"
-                onChange={change}
-                className="w-full border border-gray-300 px-3 py-2 rounded
-                           focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-
-              <input
-                name="lname"
-                placeholder="Last Name"
-                onChange={change}
-                className="w-full border border-gray-300 px-3 py-2 rounded
-                           focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-
-              <input
-                name="email"
-                placeholder="Email"
-                onChange={change}
-                className="w-full border border-gray-300 px-3 py-2 rounded
-                           focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
+              <input name="fname" placeholder="First Name" onChange={change} className={input} />
+              <input name="lname" placeholder="Last Name" onChange={change} className={input} />
+              <input name="email" placeholder="Email" onChange={change} className={input} />
             </>
           )}
 
-          <input
-            name="mobile"
-            placeholder="Mobile"
-            onChange={change}
-            className="w-full border border-gray-300 px-3 py-2 rounded
-                       focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
+          <input name="mobile" placeholder="Mobile" onChange={change} className={input} />
+          <input name="password" type="password" placeholder="Password" onChange={change} className={input} />
 
-          <input
-            name="password"
-            type="password"
-            placeholder="Password"
-            onChange={change}
-            className="w-full border border-gray-300 px-3 py-2 rounded
-                       focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
+          <button onClick={isLogin ? login : signup} className="w-full bg-blue-600 text-white py-2">
+            {isLogin ? "Login" : "Signup"}
+          </button>
+
+          <p
+            className="text-sm text-center text-blue-600 mt-3 cursor-pointer"
+            onClick={() => setIsLogin(!isLogin)}
+          >
+            {isLogin ? "Create account" : "Already have account?"}
+          </p>
         </div>
+      </div>
+    );
+  }
 
-        <button
-          onClick={isLogin ? login : signup}
-          className="w-full mt-5 bg-blue-600 hover:bg-blue-700
-                     text-white py-2 rounded transition"
-        >
-          {isLogin ? "Login" : "Signup"}
-        </button>
 
-        <p
-          className="text-sm text-center text-blue-600 mt-4 cursor-pointer hover:underline"
-          onClick={() => setIsLogin(!isLogin)}
-        >
-          {isLogin ? "Create new account" : "Already have an account?"}
-        </p>
+  /* dashboard UI */
+return (
+  <div className="min-h-screen bg-gray-100 flex justify-center">
+  <div className="w-full max-w-7xl px-4 py-4">
+
+    {/* Header */}
+    <div className="bg-white p-3 flex items-center justify-between shadow mb-3">
+      <h2 className="w-full text-center text-xl font-semibold text-gray-800 bg-white py-2 rounded shadow-sm">Student Dashboard</h2>
+      <div className="flex gap-2">
+        <button onClick={() => setShowProfileModal(true)}
+          className="bg-gray-700 text-white px-3 py-1 rounded">Profile</button>
+        <button onClick={logout} className="text-red-600">Logout</button>
       </div>
     </div>
-  );
-}
 
-  /* ---------- DASHBOARD ---------- */
+    {/* Content */}
+    <div className="bg-white p-4 shadow rounded">
 
-  return (
-    <div className="min-h-screen bg-gray-100 p-6">
-      {/* Top Bar */}
-      <div className="bg-white p-4 flex justify-between shadow mb-4">
-        <h2 className="font-bold">Student Dashboard</h2>
-        <div className="space-x-3">
-          <button
-            onClick={() => setShowProfileModal(true)}
-            className="bg-gray-700 text-white px-3 py-1"
-          >
-            Profile
-          </button>
-          <button onClick={logout} className="text-red-600">
-            Logout
-          </button>
-        </div>
+      {/* Title + Add */}
+
+
+      {/* Filters */}
+      <div className="flex flex-wrap gap-2 mb-3">
+        <input type="text" placeholder="Name"
+          className="border px-2 py-1 rounded"
+          value={filterName} onChange={(e) => setFilterName(e.target.value)} />
+        <input type="number" placeholder="Age"
+          className="border px-2 py-1 rounded w-24"
+          value={filterAge} onChange={(e) => setFilterAge(e.target.value)} />
+        
+        <button onClick={fetchStudents}
+          className="bg-blue-600 text-white px-3 py-1 rounded">Filter</button>
+        <button onClick={clearFilters}
+          className="bg-red-500 text-white px-3 py-1 rounded">Clear</button>
+        
+          <button onClick={openAddStudent}
+          className="bg-green-600 text-white px-3 py-1 rounded mr-3 ml-auto">
+          Add Student
+        </button>
       </div>
+      
 
-      {/* Students List */}
-      <div className="bg-white p-4 shadow">
-        <div className="flex justify-between mb-3">
-          <h3 className="font-semibold">Students</h3>
-          <button onClick={openAddStudent} className="bg-blue-600 text-white px-3 py-1">
-            Add Student
-          </button>
-        </div>
-
-        <table className="w-full border">
-          <thead>
-            <tr className="bg-gray-100">
+      {/* Table */}
+      <h3 className="font-semibold">Students</h3>
+      <div className="overflow-x-auto">
+        <table className="w-full border text-sm">
+          <thead className="bg-gray-100">
+            <tr>
               <th className="border p-2">Name</th>
               <th className="border p-2">Roll</th>
               <th className="border p-2">Dept</th>
+              <th className="border p-2">Age</th>
               <th className="border p-2">Action</th>
             </tr>
           </thead>
@@ -278,13 +261,12 @@ if (!user) {
                 <td className="border p-2">{s.name}</td>
                 <td className="border p-2">{s.roll}</td>
                 <td className="border p-2">{s.dept}</td>
+                <td className="border p-2">{s.age}</td>
                 <td className="border p-2">
-                  <button onClick={() => openEditStudent(s)} className="text-blue-600 mr-3">
-                    Edit
-                  </button>
-                  <button onClick={() => deleteStudent(s.id)} className="text-red-600">
-                    Delete
-                  </button>
+                  <button onClick={() => openEditStudent(s)}
+                    className="text-blue-600 mr-2">Edit</button>
+                  <button onClick={() => deleteStudent(s.id)}
+                    className="text-red-600">Delete</button>
                 </td>
               </tr>
             ))}
@@ -292,59 +274,81 @@ if (!user) {
         </table>
       </div>
 
-      {/* ---------- STUDENT MODAL ---------- */}
-      {showStudentModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center">
-          <div className="bg-white p-6 w-full max-w-md shadow">
-            <h3 className="font-bold mb-3">
-              {editStudentId ? "Edit Student" : "Add Student"}
-            </h3>
-
-            <input placeholder="Name" value={studentForm.name}
-              onChange={(e) => setStudentForm({ ...studentForm, name: e.target.value })}
-              className={input} />
-            <input placeholder="Roll" value={studentForm.roll}
-              onChange={(e) => setStudentForm({ ...studentForm, roll: e.target.value })}
-              className={input} />
-            <input placeholder="Department" value={studentForm.dept}
-              onChange={(e) => setStudentForm({ ...studentForm, dept: e.target.value })}
-              className={input} />
-
-            <div className="flex justify-end gap-2 mt-4">
-              <button onClick={() => setShowStudentModal(false)} className="border px-4 py-2">
-                Cancel
-              </button>
-              <button onClick={saveStudent} className="bg-blue-600 text-white px-4 py-2">
-                Save
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ---------- PROFILE MODAL ---------- */}
-      {showProfileModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center">
-          <div className="bg-white p-6 w-full max-w-md shadow">
-            <h3 className="font-bold mb-3">My Profile</h3>
-
-            <input value={user.fname} onChange={(e) => setUser({ ...user, fname: e.target.value })} className={input} />
-            <input value={user.lname} onChange={(e) => setUser({ ...user, lname: e.target.value })} className={input} />
-            <input value={user.email} onChange={(e) => setUser({ ...user, email: e.target.value })} className={input} />
-
-            <div className="flex justify-end gap-2 mt-4">
-              <button onClick={() => setShowProfileModal(false)} className="border px-4 py-2">
-                Cancel
-              </button>
-              <button onClick={saveProfile} className="bg-green-600 text-white px-4 py-2">
-                Save
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
-  );
+
+    {/* Student Modal */}
+    {showStudentModal && (
+      <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center">
+        <div className="bg-white p-4 w-full max-w-md shadow rounded">
+          <h3 className="font-bold mb-2">
+            {editStudentId ? "Edit Student" : "Add Student"}
+          </h3>
+          <input className={input} placeholder="name"
+            value={studentForm.name}
+            onChange={(e) => setStudentForm({ ...studentForm, name: e.target.value })} />
+          <input className={input} placeholder="roll"
+            value={studentForm.roll}
+            onChange={(e) => setStudentForm({ ...studentForm, roll: e.target.value })} />
+          <input className={input} placeholder="dept"
+            value={studentForm.dept}
+            onChange={(e) => setStudentForm({ ...studentForm, dept: e.target.value })} />
+          <input className={input} placeholder="age"
+            value={studentForm.age}
+            onChange={(e) => setStudentForm({ ...studentForm, age: e.target.value })} />
+          <div className="flex justify-end gap-2">
+            <button onClick={() => setShowStudentModal(false)}
+              className="border px-3 py-1">Cancel</button>
+            <button onClick={saveStudent}
+              className="bg-green-600 text-white px-3 py-1">Save</button>
+
+          </div>
+        </div>
+      </div>
+    )}
+
+    {/* Profile Modal */}
+    {showProfileModal && (
+      <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center">
+        <div className="bg-white p-4 w-full max-w-md shadow rounded">
+          <h3 className="font-bold mb-2 text-center">My Profile</h3>
+
+          <img
+            src={user?.profile_pic ? `${API}/uploads/${user.profile_pic}` : "/default-avatar.png"}
+            className="w-20 h-20 rounded-full object-cover mx-auto mb-3"
+            alt="profile"
+          />
+
+          <input className={input} placeholder="Fname"
+            value={user.fname} onChange={(e) => setUser({ ...user, fname: e.target.value })} />
+          <input className={input} placeholder="Lname"
+            value={user.lname} onChange={(e) => setUser({ ...user, lname: e.target.value })} />
+          <input className={input} placeholder="Email"
+            value={user.email} onChange={(e) => setUser({ ...user, email: e.target.value })} />
+          <input type="file" accept="image/*"
+            onChange={(e) => setProfilePic(e.target.files[0])} />
+
+          <div className="flex justify-end gap-2 mt-2">
+            <button onClick={() => setShowProfileModal(false)}
+              className="border px-3 py-1">Cancel</button>
+            <button onClick={saveProfile} disabled={profileLoading} className={`px-3 py-1 rounded text-white flex items-center justify-center ${profileLoading ? "bg-gray-400 cursor-not-allowed" : "bg-green-600"}`}>
+               {profileLoading ? (
+               <>
+                    <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></span>
+                     Uploading...
+               </>
+             ) : (
+             "Save"
+            )}</button>
+
+          </div>
+        </div>
+      </div>
+    )}
+
+  </div>
+  </div>
+);
+
 }
 
 export default App;

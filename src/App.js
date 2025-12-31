@@ -112,7 +112,7 @@ const signup = async () => {
 
   setErrors({});
   setIsLogin(true);
-  return alert("successful signup");
+  return alert("successful signup 😍");
 };
 
 
@@ -127,6 +127,7 @@ const signup = async () => {
       body: JSON.stringify({
         mobile: form.mobile,
         password: form.password,
+        
       }),
     });
 
@@ -136,6 +137,7 @@ const signup = async () => {
 
     setUser(data.user);
     localStorage.setItem("user", JSON.stringify(data.user));
+    return alert("successful Login 🥳");
   };
 
   const logout = () => {

@@ -1,6 +1,7 @@
 
 
 import { useEffect, useState, useCallback } from "react";
+import { showAlert } from "./utils/alert";
 
 const API = "http://127.0.0.1:5000";
 const input = "w-full border px-3 py-2 rounded mb-2";
@@ -112,9 +113,8 @@ const signup = async () => {
 
   setErrors({});
   setIsLogin(true);
-  return alert("successful signup 😍");
+  return showAlert("Successful Signup 😍", "success");
 };
-
 
 
   const login = async () => {
@@ -127,7 +127,6 @@ const signup = async () => {
       body: JSON.stringify({
         mobile: form.mobile,
         password: form.password,
-        
       }),
     });
 
@@ -137,7 +136,7 @@ const signup = async () => {
 
     setUser(data.user);
     localStorage.setItem("user", JSON.stringify(data.user));
-    return alert("successful Login 🥳");
+    return showAlert("Successful Login 🥳");
   };
 
   const logout = () => {
